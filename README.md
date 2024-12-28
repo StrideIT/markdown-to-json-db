@@ -67,7 +67,6 @@ erDiagram
     DOCUMENT ||--o{ JSON_OUTPUT : "has many"
     DOCUMENT ||--o| VALIDATION_RESULT : "has one"
 ```
-```
 
 ### Sequence Diagram
 The sequence diagram illustrates the flow of data and interactions between the components of the script.
