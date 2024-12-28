@@ -1,4 +1,7 @@
-# Project README
+# Markdown to JSON Database Converter
+
+## Introduction
+The Markdown to JSON Database Converter is a powerful tool designed to convert Markdown (`.md`) files into JSON format and import the converted data into a PostgreSQL database. This tool is ideal for developers and data engineers who need to efficiently manage and manipulate Markdown content within a database environment. The converter supports hierarchical data structures, making it suitable for complex documents with nested sections.
 
 ## Testing Before Integration
 Thoroughly test the script before integrating it into your backend framework (e.g., FastAPI, Flask, Django, etc.).
@@ -129,6 +132,135 @@ classDiagram
     JSONWriter --> MarkdownConverter
     Validator --> MarkdownConverter
 ```
+
+## Input Example
+Here is an example of a Markdown file content with Epics, Features, User Stories, and Tasks:
+
+```markdown
+# Project
+
+## Epic 1
+This is the first epic.
+
+### Feature 1.1
+This is the first feature.
+
+#### User Story 1.1.1
+This is the first user story.
+
+##### Task 1.1.1.1
+This is the first task.
+
+## Epic 2
+This is the second epic.
+
+### Feature 2.1
+This is the second feature.
+
+#### User Story 2.1.1
+This is the second user story.
+
+##### Task 2.1.1.1
+This is the second task.
+```
+
+## Output Example
+Here is the corresponding JSON output:
+
+```json
+{
+  "convert_test.md": [
+    {
+      "title": "Comprehensive Car Marketplace Web and Mobile Application",
+      "content": "This document presents a unified vision for a comprehensive car marketplace application that operates seamlessly across both web and mobile platforms. The goal is to integrate various methods of car listings and promotions into one cohesive system, ensuring all components align with the same purpose: to create an efficient, user-friendly platform for buying and selling cars.",
+      "level": 1,
+      "children": [
+        {
+          "title": "Epic 1",
+          "content": "This is the first epic.",
+          "level": 2,
+          "children": [
+            {
+              "title": "Feature 1.1",
+              "content": "This is the first feature.",
+              "level": 3,
+              "children": [
+                {
+                  "title": "User Story 1.1.1",
+                  "content": "This is the first user story.",
+                  "level": 4,
+                  "children": [
+                    {
+                      "title": "Task 1.1.1.1",
+                      "content": "This is the first task.",
+                      "level": 5,
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Epic 2",
+          "content": "This is the second epic.",
+          "level": 2,
+          "children": [
+            {
+              "title": "Feature 2.1",
+              "content": "This is the second feature.",
+              "level": 3,
+              "children": [
+                {
+                  "title": "User Story 2.1.1",
+                  "content": "This is the second user story.",
+                  "level": 4,
+                  "children": [
+                    {
+                      "title": "Task 2.1.1.1",
+                      "content": "This is the second task.",
+                      "level": 5,
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Testing Process
+
+### Create Database
+1. Open your PostgreSQL client (e.g., pgAdmin, psql).
+2. Create a new database:
+   ```sql
+   CREATE DATABASE markdown_to_json_db;
+   ```
+
+### Run the Schema Script
+1. Set the database connection details in your environment variables:
+   ```sh
+   export DB_HOST=your_db_host
+   export DB_PORT=your_db_port
+   export DB_NAME=markdown_to_json_db
+   export DB_USER=your_db_user
+   export DB_PASSWORD=your_db_password
+   ```
+2. Navigate to the `database` folder in your terminal:
+   ```sh
+   cd database
+   ```
+3. Run the schema script to create the necessary tables:
+   ```sh
+   python import_schema.py
+   ```
 
 ## Contact
 Feel free to contact me to achieve group and new ideas.
