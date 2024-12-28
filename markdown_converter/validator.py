@@ -11,6 +11,9 @@ This module provides the Validator class for validating JSON content against a s
 
 class Validator:
     def __init__(self):
+        """
+        Initialize the Validator with a predefined JSON schema.
+        """
         self.schema = {
             "type": "object",
             "patternProperties": {
@@ -31,6 +34,15 @@ class Validator:
         }
 
     def validate(self, data: dict):
+        """
+        Validate the JSON data against the predefined schema.
+
+        Args:
+            data (dict): The JSON data to be validated.
+
+        Returns:
+            Tuple[bool, str]: A tuple containing a boolean indicating if the data is valid and an error message if invalid.
+        """
         try:
             jsonschema.validate(instance=data, schema=self.schema)
             return True, ""

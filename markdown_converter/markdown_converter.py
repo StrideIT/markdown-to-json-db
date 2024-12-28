@@ -37,6 +37,12 @@ class MarkdownConverter:
             self._establish_db_connection()
 
     def _default_output_path(self) -> str:
+        """
+        Generate the default output path for the converted JSON file.
+
+        Returns:
+            str: The default output path.
+        """
         source_dir = os.path.dirname(self.source_file)
         source_filename = os.path.splitext(os.path.basename(self.source_file))[0]
         return os.path.join(source_dir, f"{source_filename}.json")
@@ -60,6 +66,12 @@ class MarkdownConverter:
         )
 
     def convert(self) -> str:
+        """
+        Convert the markdown file to JSON and optionally save the output to a database.
+
+        Returns:
+            str: The path to the converted JSON file.
+        """
         content = self.file_reader.read()
         data = self._parse_markdown(content)
         self.json_writer.write(data)
@@ -71,6 +83,12 @@ class MarkdownConverter:
     def _insert_document(self) -> int:
         """
         Insert a document into the DOCUMENT table and return the document ID.
+
+        Returns:
+            int: The document ID.
+
+        Raises:
+            ValueError: If the database connection is not established or if the document ID retrieval fails.
         """
         if self.db_conn is None:
             raise ValueError("Database connection is not established.")
@@ -90,6 +108,13 @@ class MarkdownConverter:
     def _insert_json_output(self, document_id: int, data: dict):
         """
         Insert JSON output into the JSON_OUTPUT table.
+
+        Args:
+            document_id (int): The document ID.
+            data (dict): The JSON data to be inserted.
+
+        Raises:
+            ValueError: If the database connection is not established.
         """
         if self.db_conn is None:
             raise ValueError("Database connection is not established.")
@@ -102,6 +127,18 @@ class MarkdownConverter:
         cur.close()
 
     def _insert_section(self, document_id, parent_id, section):
+        """
+        Insert a section into the SECTION table.
+
+        Args:
+            document_id: The document ID.
+            parent_id: The parent section ID.
+            section: The section data to be inserted.
+
+        Raises:
+            KeyError: If the section does not contain 'title' and 'content' keys.
+            ValueError: If the database connection is not established.
+        """
         if 'title' not in section or 'content' not in section:
             raise KeyError("Section must contain 'title' and 'content' keys")
         
@@ -127,6 +164,14 @@ class MarkdownConverter:
     def _insert_validation_result(self, document_id: int, is_valid: bool, errors: str):
         """
         Insert validation result into the VALIDATION_RESULT table.
+
+        Args:
+            document_id (int): The document ID.
+            is_valid (bool): The validation result.
+            errors (str): The validation errors.
+
+        Raises:
+            ValueError: If the database connection is not established.
         """
         if self.db_conn is None:
             raise ValueError("Database connection is not established.")
@@ -141,6 +186,12 @@ class MarkdownConverter:
     def _save_to_database(self, data: dict):
         """
         Save the converted data to the database.
+
+        Args:
+            data (dict): The converted JSON data.
+
+        Raises:
+            ValueError: If the database connection is not established.
         """
         if self.db_conn is None:
             raise ValueError("Database connection is not established.")
@@ -151,8 +202,16 @@ class MarkdownConverter:
         is_valid, errors = self.validator.validate(data)
         self._insert_validation_result(document_id, is_valid, errors)
 
-
     def _parse_markdown(self, content: List[str]) -> dict:
+        """
+        Parse the markdown content and convert it to a JSON structure.
+
+        Args:
+            content (List[str]): The markdown content to be parsed.
+
+        Returns:
+            dict: The parsed JSON structure.
+        """
         stack: List[Dict[str, Any]] = []
         current_content: List[str] = []
         root: List[Dict[str, Any]] = []
@@ -205,11 +264,12 @@ class MarkdownConverter:
         if current_content and stack:
             stack[-1]["content"] = "\n".join(current_content)
 
+        # Return the parsed JSON structure with the document title and content.
         return {
             os.path.basename(self.source_file): [
                 {
-                    "title": "Comprehensive Car Marketplace Web and Mobile Application",
-                    "content": "This document presents a unified vision for a comprehensive car marketplace application that operates seamlessly across both web and mobile platforms. The goal is to integrate various methods of car listings and promotions into one cohesive system, ensuring all components align with the same purpose: to create an efficient, user-friendly platform for buying and selling cars.",
+                    "title": first_level_1["title"] if first_level_1 else "Document",
+                    "content": first_level_1["content"] if first_level_1 else "",
                     "level": 1,
                     "children": root
                 }
