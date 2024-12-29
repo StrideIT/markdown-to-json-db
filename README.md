@@ -456,17 +456,42 @@ output_path = converter.convert()
 ```
 markdown_converter/
 ├── __init__.py
+├── database_handler.py
+├── file_reader.py
+├── json_writer.py
 ├── markdown_converter.py
-├── validators/
-│   ├── base/
-│   │   ├── base_validator.py
-│   │   └── error_handler.py
-│   ├── schema_validator.py
-│   ├── content_validator.py
-│   └── structure_validator.py
-└── database/
-    ├── base_handler.py
-    └── handlers/
+├── parser.py
+├── path_manager.py
+├── validator.py
+├── coordinators/
+│   ├── __init__.py
+│   ├── conversion.py
+│   ├── database_operations.py
+│   └── file_operations.py
+├── database/
+│   ├── __init__.py
+│   ├── base_handler.py
+│   ├── document_handler.py
+│   ├── output_handler.py
+│   └── section_handler.py
+├── markdown_parser/
+│   ├── __init__.py
+│   ├── base_handler.py
+│   ├── content_accumulator.py
+│   ├── heading_detector.py
+│   └── tree_manager.py
+└── validators/
+    ├── __init__.py
+    ├── base/
+    │   ├── __init__.py
+    │   ├── base_validator.py
+    │   └── error_handler.py
+    ├── schema/
+    │   └── __init__.py
+    ├── base_validator.py
+    ├── content_validator.py
+    ├── schema_validator.py
+    └── structure_validator.py
 ```
 
 ### Adding New Validators
