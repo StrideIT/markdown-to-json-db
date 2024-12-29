@@ -1,277 +1,124 @@
-import re
-import os
-import psycopg2
-import json
-from typing import Optional, List, Dict, Any, Union
-from psycopg2.extensions import connection
-from .file_reader import FileReader
-from .json_writer import JSONWriter
-from .validator import Validator
-
 """
-Author: Tariq Ahmed
-Email: t.ahmed@stride.ae
-Organization: Stride Information Technology
+Core module for converting Markdown files to JSON with database integration.
 
-This module provides the MarkdownConverter class for converting markdown files to JSON and optionally saving the output to a database.
+This module serves as the main entry point for the markdown-to-json conversion
+system. It orchestrates the entire conversion process through specialized
+coordinators that handle different aspects: file operations for I/O, content
+conversion for parsing, and database operations for persistent storage.
+
+Author:
+    Tariq Ahmed (t.ahmed@stride.ae)
+
+Organization:
+    Stride Information Technology LLC
+
+Example:
+    >>> # Basic conversion to JSON file
+    >>> converter = MarkdownConverter("input.md")
+    >>> output_path = converter.convert()
+    >>> print(f"JSON saved to: {output_path}")
+    
+    >>> # Conversion with database storage
+    >>> converter_with_db = MarkdownConverter("input.md", save_to_db=True)
+    >>> output_path = converter_with_db.convert()
+    >>> print(f"JSON saved to file and database")
 """
+
+from typing import Optional
+from .coordinators import (
+    FileOperationsCoordinator,
+    ConversionCoordinator,
+    DatabaseOperationsCoordinator
+)
 
 class MarkdownConverter:
-    def __init__(self, source_file: str, output_path: Optional[str] = None, save_to_db: bool = False):
-        """
-        Initialize the MarkdownConverter.
+    """Main converter class orchestrating the markdown to JSON transformation.
+
+    This class coordinates three main aspects of the conversion process:
+    1. File Operations: Reading markdown and writing JSON
+    2. Content Conversion: Parsing markdown into structured data
+    3. Database Operations: Optional persistent storage of converted content
+
+    The conversion process is designed to be flexible, allowing output to
+    both file system and database, with database storage being optional.
+
+    Attributes:
+        file_coordinator (FileOperationsCoordinator): Handles file I/O operations
+        conversion_coordinator (ConversionCoordinator): Manages content parsing
+        db_coordinator (Optional[DatabaseOperationsCoordinator]): Handles database
+            operations when enabled
+    """
+
+    def __init__(self, source_file: str, output_path: Optional[str] = None, save_to_db: bool = False) -> None:
+        """Initialize the MarkdownConverter with source file and options.
+
+        Sets up the conversion pipeline by initializing the necessary coordinators
+        based on the provided options. The file and conversion coordinators are
+        always created, while the database coordinator is optional.
 
         Args:
-            source_file (str): The path to the source markdown file.
-            output_path (Optional[str]): The path to save the converted output. Defaults to None.
-            save_to_db (bool): Flag to determine if the output should be saved to the database. Defaults to False.
-        """
-        self.source_file = source_file
-        self.output_path = output_path or self._default_output_path()
-        self.save_to_db = save_to_db
-        self.file_reader = FileReader(source_file)
-        self.json_writer = JSONWriter(self.output_path)
-        self.validator = Validator()
-        self.db_conn: Optional[connection] = None
-        if self.save_to_db:
-            self._establish_db_connection()
+            source_file (str): Path to the source Markdown file to convert.
+                Should be a valid path to an existing markdown file.
+            output_path (Optional[str], optional): Path where the JSON output
+                will be written. If None, uses the same path as source_file
+                with .json extension. Defaults to None.
+            save_to_db (bool, optional): Whether to save the output to the
+                database. When True, initializes database operations.
+                Defaults to False.
 
-    def _default_output_path(self) -> str:
+        Example:
+            >>> # Basic conversion setup
+            >>> converter = MarkdownConverter("doc.md")
+            >>> isinstance(converter.file_coordinator, FileOperationsCoordinator)
+            True
+            
+            >>> # Setup with custom output and database storage
+            >>> converter = MarkdownConverter(
+            ...     "doc.md",
+            ...     output_path="custom/path.json",
+            ...     save_to_db=True
+            ... )
+            >>> converter.db_coordinator is not None
+            True
         """
-        Generate the default output path for the converted JSON file.
-
-        Returns:
-            str: The default output path.
-        """
-        source_dir = os.path.dirname(self.source_file)
-        source_filename = os.path.splitext(os.path.basename(self.source_file))[0]
-        return os.path.join(source_dir, f"{source_filename}.json")
-
-    def _establish_db_connection(self):
-        """
-        Establish a database connection.
-        """
-        db_host = os.getenv('DB_HOST')
-        db_port = os.getenv('DB_PORT')
-        db_name = os.getenv('DB_NAME')
-        db_user = os.getenv('DB_USER')
-        db_password = os.getenv('DB_PASSWORD')
-
-        self.db_conn = psycopg2.connect(
-            host=db_host,
-            port=db_port,
-            dbname=db_name,
-            user=db_user,
-            password=db_password
-        )
+        self.file_coordinator = FileOperationsCoordinator(source_file, output_path)
+        self.conversion_coordinator = ConversionCoordinator(source_file)
+        self.db_coordinator = DatabaseOperationsCoordinator() if save_to_db else None
 
     def convert(self) -> str:
-        """
-        Convert the markdown file to JSON and optionally save the output to a database.
+        """Execute the markdown to JSON conversion process.
 
-        Returns:
-            str: The path to the converted JSON file.
-        """
-        content = self.file_reader.read()
-        data = self._parse_markdown(content)
-        self.json_writer.write(data)
-        self.validator.validate(data)
-        if self.save_to_db:
-            self._save_to_database(data)
-        return self.output_path
-
-    def _insert_document(self) -> int:
-        """
-        Insert a document into the DOCUMENT table and return the document ID.
-
-        Returns:
-            int: The document ID.
-
-        Raises:
-            ValueError: If the database connection is not established or if the document ID retrieval fails.
-        """
-        if self.db_conn is None:
-            raise ValueError("Database connection is not established.")
-        cur = self.db_conn.cursor()
-        cur.execute(
-            "INSERT INTO DOCUMENT (filename, created_at, updated_at) VALUES (%s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) RETURNING id",
-            (self.source_file,)
-        )
-        result = cur.fetchone()
-        if result is None:
-            raise ValueError("Failed to retrieve document ID.")
-        document_id = result[0]
-        self.db_conn.commit()
-        cur.close()
-        return document_id
-
-    def _insert_json_output(self, document_id: int, data: dict):
-        """
-        Insert JSON output into the JSON_OUTPUT table.
-
-        Args:
-            document_id (int): The document ID.
-            data (dict): The JSON data to be inserted.
-
-        Raises:
-            ValueError: If the database connection is not established.
-        """
-        if self.db_conn is None:
-            raise ValueError("Database connection is not established.")
-        cur = self.db_conn.cursor()
-        cur.execute(
-            "INSERT INTO JSON_OUTPUT (document_id, json_content, created_at) VALUES (%s, %s, CURRENT_TIMESTAMP)",
-            (document_id, json.dumps(data))
-        )
-        self.db_conn.commit()
-        cur.close()
-
-    def _insert_section(self, document_id, parent_id, section):
-        """
-        Insert a section into the SECTION table.
-
-        Args:
-            document_id: The document ID.
-            parent_id: The parent section ID.
-            section: The section data to be inserted.
-
-        Raises:
-            KeyError: If the section does not contain 'title' and 'content' keys.
-            ValueError: If the database connection is not established.
-        """
-        if 'title' not in section or 'content' not in section:
-            raise KeyError("Section must contain 'title' and 'content' keys")
+        Performs the complete conversion process in the following steps:
+        1. Reads the markdown content from the source file
+        2. Converts the content to a structured JSON format
+        3. Writes the JSON output to the specified file
+        4. Optionally saves the data to the database if enabled
         
-        if self.db_conn is None:
-            raise ValueError("Database connection is not established.")
-        cur = self.db_conn.cursor()
-        cur.execute(
-            """
-            INSERT INTO SECTION (document_id, parent_id, title, content, level, position, path)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            RETURNING id
-            """,
-            (document_id, parent_id, section['title'], section['content'], section['level'], section.get('position', 0), section.get('path', ''))
-        )
-        result = cur.fetchone()
-        if result is None:
-            raise ValueError("Failed to retrieve section ID.")
-        section_id = result[0]
-        if section.get('children'):
-            for child in section['children']:
-                self._insert_section(document_id, section_id, child)
-
-    def _insert_validation_result(self, document_id: int, is_valid: bool, errors: str):
-        """
-        Insert validation result into the VALIDATION_RESULT table.
-
-        Args:
-            document_id (int): The document ID.
-            is_valid (bool): The validation result.
-            errors (str): The validation errors.
-
-        Raises:
-            ValueError: If the database connection is not established.
-        """
-        if self.db_conn is None:
-            raise ValueError("Database connection is not established.")
-        cur = self.db_conn.cursor()
-        cur.execute(
-            "INSERT INTO VALIDATION_RESULT (document_id, is_valid, errors, validated_at) VALUES (%s, %s, %s, CURRENT_TIMESTAMP)",
-            (document_id, is_valid, errors)
-        )
-        self.db_conn.commit()
-        cur.close()
-
-    def _save_to_database(self, data: dict):
-        """
-        Save the converted data to the database.
-
-        Args:
-            data (dict): The converted JSON data.
-
-        Raises:
-            ValueError: If the database connection is not established.
-        """
-        if self.db_conn is None:
-            raise ValueError("Database connection is not established.")
-        document_id = self._insert_document()
-        self._insert_json_output(document_id, data)
-        root_section = data[list(data.keys())[0]][0]
-        self._insert_section(document_id, None, root_section)
-        is_valid, errors = self.validator.validate(data)
-        self._insert_validation_result(document_id, is_valid, errors)
-
-    def _parse_markdown(self, content: List[str]) -> dict:
-        """
-        Parse the markdown content and convert it to a JSON structure.
-
-        Args:
-            content (List[str]): The markdown content to be parsed.
-
         Returns:
-            dict: The parsed JSON structure.
+            str: The path to the converted JSON file. This is either the
+                custom output_path if provided during initialization, or
+                the default path derived from the source file.
+
+        Raises:
+            FileNotFoundError: If the source file cannot be read
+            OSError: If the output file cannot be written
+            ValueError: If the markdown content is invalid
+            RuntimeError: If database operations fail when enabled
+
+        Example:
+            >>> converter = MarkdownConverter("doc.md")
+            >>> output_path = converter.convert()
+            >>> output_path.endswith(".json")
+            True
+            >>> import os
+            >>> os.path.exists(output_path)
+            True
         """
-        stack: List[Dict[str, Any]] = []
-        current_content: List[str] = []
-        root: List[Dict[str, Any]] = []
-        first_level_1: Optional[Dict[str, Any]] = None
-
-        for line in content:
-            line = line.strip()
-            if not line:
-                continue
-
-            heading_match = re.match(r'^(#{1,6})\s+(.+)$', line)
-            if heading_match:
-                if current_content and stack:
-                    stack[-1]["content"] = "\n".join(current_content)
-                current_content = []
-
-                level = len(heading_match.group(1))
-                title = heading_match.group(2)
-
-                new_node = {
-                    "title": title,
-                    "content": "",
-                    "level": level,
-                    "children": []
-                }
-
-                if level == 1:
-                    if first_level_1 is None:
-                        first_level_1 = new_node
-                        root.append(first_level_1)
-                        stack = [new_node]
-                    else:
-                        first_level_1["children"].append(new_node)
-                        stack = [new_node]
-                    continue
-
-                while stack and stack[-1]["level"] >= level:
-                    stack.pop()
-
-                if stack:
-                    parent = stack[-1]
-                    parent["children"].append(new_node)
-                else:
-                    root.append(new_node)
-
-                stack.append(new_node)
-            else:
-                current_content.append(line)
-
-        if current_content and stack:
-            stack[-1]["content"] = "\n".join(current_content)
-
-        # Return the parsed JSON structure with the document title and content.
-        return {
-            os.path.basename(self.source_file): [
-                {
-                    "title": first_level_1["title"] if first_level_1 else "Document",
-                    "content": first_level_1["content"] if first_level_1 else "",
-                    "level": 1,
-                    "children": root
-                }
-            ]
-        }
+        content = self.file_coordinator.read_content()
+        data = self.conversion_coordinator.convert(content)
+        self.file_coordinator.write_json(data)
+        
+        if self.db_coordinator:
+            self.db_coordinator.save(self.file_coordinator.source_file, data)
+        
+        return self.file_coordinator.get_output_path()

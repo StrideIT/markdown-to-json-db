@@ -1,42 +1,42 @@
-import sys
 import os
 import json
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 import unittest
 from markdown_converter.markdown_converter import MarkdownConverter
 
-class TestConvertMdToJson(unittest.TestCase):
-    def test_convert_md_to_json(self):
-        # Example test case for MarkdownConverter class
-        input_file = 'example/convert_test.md'
-        output_file = 'example/output_test.json'
-        converter = MarkdownConverter(input_file, output_file)
+class TestMarkdownConverter(unittest.TestCase):
+    def setUp(self):
+        # Create a sample markdown file for testing
+        self.sample_md_content = "# Sample Title\n\nThis is a sample markdown content."
+        self.sample_md_file = "sample_test.md"
+        with open(self.sample_md_file, "w") as f:
+            f.write(self.sample_md_content)
+
+    def tearDown(self):
+        # Clean up the sample markdown file and JSON output
+        if os.path.exists(self.sample_md_file):
+            os.remove(self.sample_md_file)
+        if os.path.exists("sample_test.json"):
+            os.remove("sample_test.json")
+
+    def test_convert_to_json(self):
+        # Test conversion to JSON without saving to database
+        converter = MarkdownConverter(self.sample_md_file, save_to_db=False)
         output_path = converter.convert()
-        
-        print(f"Output file path: {output_path}")
-        
-        with open(output_path, 'r') as f:
-            output_content = f.read()
-        
-        print(f"Actual output content: {output_content}")
-        
-        actual_content = json.loads(output_content)
-        
-        expected_content = {
-            "convert_test.md": [
-                {
-                    "title": "Comprehensive Car Marketplace Web and Mobile Application",
-                    "content": "This document presents a unified vision for a comprehensive car marketplace application that operates seamlessly across both web and mobile platforms. The goal is to integrate various methods of car listings and promotions into one cohesive system, ensuring all components align with the same purpose: to create an efficient, user-friendly platform for buying and selling cars.",
-                    "level": 1,
-                    "children": [
-                        {
-                            "title": "1. Service for Social Media Influencers Specialized in Selling Cars",
-                            "content": "",
-                            "level": 2,
-                            "children": [
-                                {
-                                    "title": "Objective",
+        self.assertTrue(os.path.exists(output_path))
+
+        with open(output_path, "r") as f:
+            data = json.load(f)
+            self.assertIn("sample_test.md", data)
+            self.assertEqual(data["sample_test.md"][0]["title"], "Sample Title")
+
+    def test_convert_to_json_with_db(self):
+        # Test conversion to JSON with saving to database
+        # Note: This test assumes a valid database connection is available
+        converter = MarkdownConverter(self.sample_md_file, save_to_db=True)
+        output_path = converter.convert()
+        self.assertTrue(os.path.exists(output_path))
+
+        with open(output_path, "r") as f:
                                     "content": "To create a streamlined process that allows social media influencers who specialize in car promotions to collaborate with car sellers through the marketplace app, benefiting all parties involved.",
                                     "level": 3,
                                     "children": []
